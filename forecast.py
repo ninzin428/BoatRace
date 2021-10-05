@@ -1,56 +1,92 @@
 """WEBからデータを取得する
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import numpy as np
+import os
+import pickle
+
+import matplotlib
 import pandas as pd
-import seaborn as sns
-from pandas.plotting import scatter_matrix
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_score
-from sklearn.model_selection import train_test_split
-import glob
+import xgboost as xgb
+import json
 
 import config as cnf
+
+matplotlib.rcParams['font.family'] = 'Hiragino sans' # 日本語対応（Mac） Windowsは別の日本語対応フォントにする必要があるかも
+
+DATE = 20210926
+MODEL_NAME = 'XGBmodel_TrainAccuracy:0.6379_Accuracy:0.5776'
+
+model_dir = os.path.join(cnf.OUTPUT_DIR, 'Model', MODEL_NAME)
 
 
 def main():
     """
     """
 
+    df = create_dataset()
+    (train_x ,train_y) = create_traindata(df)
+    forecast(train_x, train_y)
 
+def create_dataset():
+    """
+    """
+    df_raseindex = pd.read_csv(cnf.RACELIST_PATH_FORMAT)
+    df = df_raseindex.query(f'日付 == {DATE}')
 
-    df_raseindex = pd.read_csv(cnf.RACEINDEX_PATH_CONCUT)
-    df_order = pd.read_csv(cnf.RESULTLIST_PATH_ORDER_CONCUT)
-    df_order = df_order.query('着順1_レーサー == 着順1_レーサー')
+    df.info()
+    print(df)
+    
+    return df
 
-    key = ['レース場コード', '日付', 'レース']
-    df = pd.merge(df_raseindex, df_order[['レース場コード', '日付', 'レース', '着順1_艇番']], on=key, how='left')
-    df = df.fillna(0)
+def create_traindata(df: pd.DataFrame):
+    """
+    """
+    df['着順1_艇番'] = '-1.0'
     train_x = df.drop(columns=['着順1_艇番'])
     train_x = pd.get_dummies(train_x)
+    train_x = give_columns(train_x)
+    train_x.info()
+    print(train_x)
+
+
     # 着順1_レーサーがNoneの場合は'＿'など文字列が入っているので、型がobjectになることがあるので、
     # '1.0'などの文字列を直接intに変換できないので、floatを経由する
     train_y = df['着順1_艇番'].astype(float).astype(int)
-    (train_x, test_x ,train_y, test_y) = train_test_split(train_x, train_y, test_size = 0.3, random_state = 42)
 
-    # 識別モデルの構築
-    random_forest = RandomForestClassifier(max_depth=30, n_estimators=30, random_state=42)
-    print(train_x)
-    print(train_y)
-    train_x.info()
-    random_forest.fit(train_x, train_y)
+    print(set(train_y))
 
-    # 予測値算出
-    y_pred = random_forest.predict(test_x)
+    return (train_x, train_y)
 
-    #モデルを作成する段階でのモデルの識別精度
-    trainaccuracy_random_forest = random_forest.score(train_x, train_y)
-    print('TrainAccuracy: {}'.format(trainaccuracy_random_forest))
+def give_columns(df: pd.DataFrame):
+    """
+    """
+    prm_file = os.path.join(model_dir, 'params.json')
+    with open(prm_file) as f:
+        prm = json.load(f)
 
-    #作成したモデルに学習に使用していない評価用のデータセットを入力し精度を確認
-    accuracy_random_forest = accuracy_score(test_y, y_pred)
-    print('Accuracy: {}'.format(accuracy_random_forest))
+    print(f'入力データカラム: {df.columns}')
+    for col in prm['col']:
+        if col not in df.columns:
+            df[col] = 0
+
+    return df[prm['col']]
+
+def forecast(train_x, train_y):
+    """
+    """
+    dtest = xgb.DMatrix(train_x, label=train_y)
+    model_file = os.path.join(model_dir, 'model.pkl')
+    bst = pickle.load(open(model_file, 'rb'))
+
+    y_pred = bst.predict(dtest)
+
+    train_x['着順1_艇番'] = train_y
+    train_x['着順1_艇番_予測'] = y_pred
+    train_x['着順1_艇番_予測'] += 1
+    train_x['レース場'] = train_x['レース場コード'].apply(lambda x: cnf.JCDS[str(int(x)).zfill(2)])
+    train_x = train_x.sort_values(['レース場コード', '日付', 'レース'])
+    train_x = train_x[['レース場コード', 'レース場', '日付', 'レース', '着順1_艇番_予測']]
+    result = os.path.join(model_dir, f'Predict_Date={DATE}.csv')
+    train_x.to_csv(result, index=False)
 
 
 if __name__ == '__main__':
