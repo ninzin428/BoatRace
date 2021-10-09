@@ -28,8 +28,10 @@ JCDS = {
     '24': '大村',
 }
 
-START_DATE = datetime.datetime(2014, 4, 8)
-#START_DATE = datetime.datetime(2021, 9, 26)
+#START_DATE = datetime.datetime(2014, 4, 8)
+START_DATE = datetime.datetime(2021, 10, 8)
+
+TARGET_COL = '組合わせ_2連勝単式'
 
 WORK_DIR = '/Users/yn/Desktop/python/BoatRace'
 OUTPUT_DIR = os.path.join(WORK_DIR, 'output')

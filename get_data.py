@@ -11,10 +11,6 @@ import config as cnf
 
 
 def main():
-    raceindex = RaceIndex()
-    resultlist = Resultlist()
-    racelist = Racelist()
-    today = datetime.datetime.now()
     for jcd in tqdm(cnf.JCDS.keys(), desc=f'Downloading Data.'):
         dl = Download(jcd)
         dl.download()
@@ -45,7 +41,7 @@ class Download:
         """
         date = cnf.START_DATE
         today = datetime.datetime.now()
-        term = (today - date).days + 1
+        term = (today - date).days + 2
         for i in range(term):
             self.dates.append(date)
             date = date + datetime.timedelta(days=1)
@@ -53,12 +49,9 @@ class Download:
     def read_one_day(self, date):
         """
         """
-        self.resultlist.read_one_day(jcd=self.jcd, date=date)
-        """
         dfs_len = self.racelist.read_one_day(jcd=self.jcd, date=date)
         if dfs_len > 0:
             self.resultlist.read_one_day(jcd=self.jcd, date=date)
-        """
 
 def check():
     """
