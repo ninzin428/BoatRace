@@ -98,17 +98,10 @@ class SearchParameters:
 
         # 予測
         y_pred = bst.predict(self.dtest).tolist()
-        y_pred_max = y_pred
-        #y_pred_max = np.argmax(y_pred)
-        y_pred_max = [x for x in y_pred_max]
-        self.y_test = [float(x) for x in self.y_test]
-        
+
         # 評価
-        #print(f'y_pred: {set(y_pred)}, self.y_test: {set(self.y_test)}')
-        accuracy = accuracy_score(self.y_test, y_pred_max)
-        #mlogloss = log_loss(self.y_test, y_pred, labels=self.y_test)
+        accuracy = calc_accuracy(self.y_test, y_pred)
         score = accuracy
-        #print(f'#{trial.number}, Result: {score}, {trial.params}')
 
         return score
 
@@ -193,47 +186,54 @@ def create_traindata(df: pd.DataFrame):
 def xgboost(X_train, X_test ,y_train, y_test, label_dict):
     """
     """
-    #y_train -= 1
-    #y_test -= 1
     weight_train = compute_sample_weight(class_weight='balanced', y=y_train)
     dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=X_train.columns, weight=weight_train)
     dtest = xgb.DMatrix(X_test, label=y_test, feature_names=X_train.columns)
 
     print('パラメータ探索開始')
+    # https://xgboost.readthedocs.io/en/latest/parameter.html
     xgb_params = {
         # 多値分類問題
-        'objective': 'multi:softmax',
+        'objective': 'multi:softprob',
         # クラス数
         'num_class': len(set(y_train)),
         # 学習用の指標 (Multiclass logloss)
         'eval_metric': 'mlogloss',
+        # ツリー構築アルゴリズム
+        'tree_method': 'hist', #より高速なヒストグラム最適化近似欲張りアルゴリズム。xgboostで最速のアルゴリズム。 default: auto
         # 学習率
-        'eta': 0.05,
+        'eta': 0.1, # 0~1
+        'subsample': 0.7,
+        'colsample_bytree': 0.5,
+
     }
     prm_dict = {
-        'max_depth': {'type': 'int', 'min': 5, 'max': 10}, # 決定木の深さの最大値
-        'lambda': {'type': 'float', 'min': 0.8, 'max': 2.0}, # L2正則化項　大きくすると過学習防止
-        'gamma': {'type': 'float', 'min': 0.0, 'max': 1.0}, # 決定木の葉の数に対するペナルティー
-        'min_child_weight': {'type': 'float', 'min': 0.0, 'max': 1.0}, # 決定木の葉の重みの下限
+        # 木構造
+        'max_depth': {'type': 'int', 'min': 10, 'max': 15}, # 0~inf 決定木の深さの最大値
+        'min_child_weight': {'type': 'float', 'min': 0.0, 'max': 5.0}, # 0~inf 決定木の葉の重みの下限
+        'gamma': {'type': 'float', 'min': 0.0, 'max': 5.0}, # 0~inf ツリーのリーフノードにさらにパーティションを作成するために必要な最小の損失削減
+        # 正則化
+        'lambda': {'type': 'float', 'min': 0.0, 'max': 5.0}, # L2正則化項　大きくすると過学習防止
+        'alpha': {'type': 'float', 'min': 0.0, 'max': 5.0}, # 重みに関するL1正則化項 高次元の場合に用いるらしい。
+        # サンプリング
+        #'subsample': {'type': 'float', 'min': 0.5, 'max': 1.0}, # 0~1 各STEPの決定木の構築に用いるデータの割合
+        #'colsample_bytree': {'type': 'float', 'min': 0.5, 'max': 1.0}, # 0~1 各STEPの決定木に用いる特徴量の割合
+        #'colsample_bylevel': {'type': 'float', 'min': 0.5, 'max': 1.0}, # 0~1 各STEPの決定木のレベルに用いる特徴量の割合
+        #'colsample_bynode': {'type': 'float', 'min': 0.5, 'max': 1.0}, # 0~1 各STEPの決定木のノードに用いる特徴量の割合
     }
-    num_boost_round = 1 #最大ラウンド数
-    early_stopping_rounds = 10 #精度向上がなくなったと判断するラウンド数
+    num_boost_round = 10000 #最大ラウンド数
+    early_stopping_rounds = 3 #精度向上がなくなったと判断するラウンド数
     sp = SearchParameters(dtrain, dtest, y_test, xgb_params, prm_dict, num_boost_round, early_stopping_rounds)
-    best_prm = sp.search_prm(n_trials=1, timeout=36000)
+    best_prm = sp.search_prm(n_trials=30, timeout=None)
     bst = sp.best_model
     evals_result = sp.best_evals_result
+    print(f'パラメータ: {xgb_params}')
 
     print('精度確認開始')
     train_y_pred = bst.predict(dtrain)
-    train_y_pred_max = train_y_pred
-    #train_y_pred_max = np.argmax(train_y_pred)
-    train_accuracy = accuracy_score(y_train, train_y_pred_max)
-    train_accuracy = round(train_accuracy, 4)
+    train_accuracy = calc_accuracy(y_train, train_y_pred)
     y_pred = bst.predict(dtest)
-    y_pred_max = y_pred
-    #y_pred_max = np.argmax(y_pred)
-    accuracy = accuracy_score(y_test, y_pred_max)
-    accuracy = round(accuracy, 4)
+    accuracy = calc_accuracy(y_test, y_pred)
 
     now = datetime.datetime.now()
     now = now.strftime('%Y%m%d_%H%M%S')
@@ -254,6 +254,7 @@ def xgboost(X_train, X_test ,y_train, y_test, label_dict):
         json.dump(xgb_params, f, indent=4, ensure_ascii=False)
 
     y_test = [label_dict[x] for x in y_test]
+    y_pred = [np.argmax(prob) for prob in y_pred]
     y_pred = [label_dict[x] for x in y_pred]
     c_report = classification_report(y_test, y_pred, digits=4, output_dict=True)
     df_c_report = pd.DataFrame(c_report).T
@@ -298,6 +299,17 @@ def xgboost(X_train, X_test ,y_train, y_test, label_dict):
         dpi=150,
         format='png'
     )
+
+def calc_accuracy(y, y_pred):
+    """
+    """
+    y_pred = [np.argmax(prob) for prob in y_pred]
+    y_pred = [float(x) for x in y_pred]
+    y = [float(x) for x in y]
+    accuracy = accuracy_score(y, y_pred)
+    accuracy = round(accuracy, 4)
+
+    return accuracy
 
 if __name__ == '__main__':
     main()
