@@ -13,10 +13,10 @@ def main():
     """
     """
 
-    #concut(cnf.RACEINDEX_PATH, cnf.RACEINDEX_PATH_CONCUT)
-    #concut(cnf.RESULTLIST_PATH_ORDER, cnf.RESULTLIST_PATH_ORDER_CONCUT)
-    concut(cnf.RESULTLIST_PATH_RETURN, cnf.RESULTLIST_PATH_RETURN_CONCUT, border_date=20201009)
-    concut(cnf.RACELIST_PATH, cnf.RACELIST_PATH_CONCUT, border_date=20201009)
+    #concut(cnf.RACEINDEX_PATH, cnf.RACEINDEX_PATH_CONCUT, border_date=20201009)
+    concut(cnf.RESULTLIST_PATH_ORDER, cnf.RESULTLIST_PATH_ORDER_CONCUT), border_date=20201009
+    #concut(cnf.RESULTLIST_PATH_RETURN, cnf.RESULTLIST_PATH_RETURN_CONCUT, border_date=20201009)
+    #concut(cnf.RACELIST_PATH, cnf.RACELIST_PATH_CONCUT, border_date=20201009)
 
 def concut(input_path: str, output_path: str, border_date=0):
     """

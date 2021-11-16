@@ -21,8 +21,87 @@ def main():
     """
     """
 
-    st.write('Hello, World!')
-    sample2()
+    st.write('競艇データ分析')
+    #sample2()
+    jcds = select_jcd()
+    hist_order(jcds)
+    hist_return(jcds)
+
+def select_jcd():
+    """
+    """
+    selected_items = st.multiselect('Select Race No.', cnf.JCDS.keys())
+    if (len(selected_items) == 0):
+        selected_items = list(cnf.JCDS.keys())
+
+    selected_item_names = [cnf.JCDS[x] for x in selected_items]
+    st.write(f'Selected: {selected_items}')
+    st.write(f'Selected: {selected_item_names}')
+
+    return selected_items
+
+
+
+def hist_order(jcds):
+    """
+    """
+    df = pd.read_csv(cnf.RESULTLIST_PATH_ORDER_CONCUT)
+    df = df.query('着順1_レーサー == 着順1_レーサー')
+    df = df.query('レース場コード == @jcds')
+    df = df[['レース場コード', '日付', 'レース', '着順1_艇番']]
+    df['レース'] = df['レース'].str.replace('R', '')
+    df = df.astype(float).astype(int)
+
+    plot_hist(df, column='着順1_艇番', bins=6, x_min=1, x_max=6)
+
+def hist_return(jcds):
+    """
+    """
+    df = pd.read_csv(cnf.RESULTLIST_PATH_RETURN_CONCUT)
+    df = df.rename(columns={'2連勝単式組合わせ': '組合わせ_2連勝単式'})
+    df = df.rename(columns={'3連勝単式組合わせ': '組合わせ_3連勝単式'})
+    df = df.rename(columns={'2連勝単式払戻金': '払戻金_2連勝単式'})
+    df = df.rename(columns={'3連勝単式払戻金': '払戻金_3連勝単式'})
+    df = df.query('レース場コード == @jcds')
+    df = df.query(r'組合わせ_2連勝単式.str.match("^[1-6]-[1-6]$")', engine='python').copy()
+    df = df[['レース場コード', '日付', 'レース', '払戻金_2連勝単式', '払戻金_3連勝単式', '組合わせ_2連勝単式', '組合わせ_3連勝単式']]
+    df['レース'] = df['レース'].str.replace('R', '')
+    df['払戻金_3連勝単式'] = df['払戻金_3連勝単式'].str.replace('¥', '')
+    df['払戻金_3連勝単式'] = df['払戻金_3連勝単式'].str.replace(',', '')
+    df['払戻金_3連勝単式'] = df['払戻金_3連勝単式'].astype(float).astype(int)
+    df['払戻金_3連勝単式'] = df['払戻金_3連勝単式'] / 100
+    df['払戻金_3連勝単式'] = df['払戻金_3連勝単式'].astype(int)
+    df['払戻金_3連勝単式'] = df['払戻金_3連勝単式'] * 100
+    df['払戻金_2連勝単式'] = df['払戻金_2連勝単式'].str.replace('¥', '')
+    df['払戻金_2連勝単式'] = df['払戻金_2連勝単式'].str.replace(',', '')
+    df['払戻金_2連勝単式'] = df['払戻金_2連勝単式'].astype(float).astype(int)
+
+    plot_hist(df, column='払戻金_3連勝単式', bins=100, x_min=0, x_max=10000)
+    plot_hist(df, column='払戻金_2連勝単式', bins=100, x_min=0, x_max=1000)
+
+
+def plot_hist(df: pd.DataFrame, column: str, bins: int, x_min: int, x_max: int):
+    """
+    """
+    # 描画領域を用意する
+    fig = plt.figure()
+    ax = fig.add_subplot()
+
+    ax.hist(df[column].values, bins=bins, range=(x_min, x_max))
+    ax.set_title(f'ヒストグラム {column}')
+    ax.set_xlabel(f'{column} bins: {bins} min: {x_min} max: {x_max}')
+    ax.set_ylabel('N')
+
+    # Matplotlib の Figure を指定して可視化する
+    st.pyplot(fig)
+    plt.close(fig)
+
+
+
+
+
+
+
 
 def sample1():
     """

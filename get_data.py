@@ -11,9 +11,30 @@ import config as cnf
 
 
 def main():
+    check()
+
+    return
+
     for jcd in tqdm(cnf.JCDS.keys(), desc=f'Downloading Data.'):
         dl = Download(jcd)
         dl.download()
+
+def check():
+    """
+    """
+    url = 'https://www.boatrace.jp/owpc/pc/race/raceresult?rno=1&jcd=02&hd=20211024'
+    dfs = pd.read_html(url)
+    print(f'データ数: {len(dfs)}')
+
+    for i in range(len(dfs)):
+        df = dfs[i]
+        path = os.path.join(cnf.OUTPUT_DIR, f'df{i}.csv')
+        df.to_csv(path)
+        print(f'データ{i}')
+        print(df.head(10))
+        print(df.columns)
+
+
 
 class Download:
     """
@@ -52,21 +73,6 @@ class Download:
         dfs_len = self.racelist.read_one_day(jcd=self.jcd, date=date)
         if dfs_len > 0:
             self.resultlist.read_one_day(jcd=self.jcd, date=date)
-
-def check():
-    """
-    """
-    url = 'https://www.boatrace.jp/owpc/pc/race/racelist?rno=1&jcd=12&hd=20210922'
-    dfs = pd.read_html(url)
-    print(f'データ数: {len(dfs)}')
-
-    for i in range(len(dfs)):
-        df = dfs[i]
-        path = os.path.join(cnf.OUTPUT_DIR, f'df{i}.csv')
-        df.to_csv(path)
-        print(f'データ{i}')
-        print(df.head(1))
-        print(df.columns)
 
 
 class Data():
@@ -301,4 +307,3 @@ class Racelist(Data):
 
 if __name__ == '__main__':
     main()
-    #check()

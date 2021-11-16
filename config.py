@@ -1,5 +1,11 @@
 import datetime
 import os
+import matplotlib
+
+# 日本語対応（Mac） Windowsは別の日本語対応フォントにする必要があるかも
+matplotlib.rcParams['font.family'] = 'Hiragino sans'
+
+
 
 JCDS = {
     '01': '桐生',
